@@ -21,9 +21,11 @@ class BaseModuleService:
         filters: dict[str, str] | None = None,
         keyword: str | None = None,
         status: str | None = None,
+        path: list[str] | None = None,
         page: int = 1,
         size: int = 20,
     ) -> tuple[list[dict[str, Any]], int]:
+        """path 是给导出用的附加列（如桥接关联的层级版本、父节点），只透传不做过滤。"""
         rows = list(store.rows(self.MODULE))
         for field, expected in (filters or {}).items():
             if field in self.LIST_FIELDS:
@@ -36,9 +38,28 @@ class BaseModuleService:
             rows = [row for row in rows if keyword.casefold() in str(row.get(field, "")).casefold()]
         if status:
             rows = [row for row in rows if row.get("status") == status]
+        if path:
+            rows = [
+                {**row, **{column: row.get(column, "") for column in path}}
+                for row in rows
+            ]
         total = len(rows)
         start = (page - 1) * size
         return rows[start:start + size], total
+
+    def export_rows(
+        self,
+        *,
+        filters: dict[str, str] | None = None,
+        keyword: str | None = None,
+        status: str | None = None,
+        path: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """导出用：返回附加列补齐后的全量业务行，供模块按自己的业务规则重写。"""
+        rows, _ = self.list_entries(
+            filters=filters, keyword=keyword, status=status, path=path,
+            page=1, size=1_000_000)
+        return [dict(row) for row in rows]
 
     def get_entry(self, entry_id: int) -> dict[str, Any] | None:
         return store.find(self.MODULE, entry_id)

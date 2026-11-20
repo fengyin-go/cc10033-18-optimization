@@ -71,6 +71,30 @@ npm run dev
 | 模型校验 | `model_validate` | 校验规则 | 规则名称、目标模型、校验类型 |
 | 部署流水线 | `deploy_pipeline` | 部署任务 | 任务名称、目标模型、部署环境 |
 
+## 桥接分摊与层级版本
+
+桥接关联的「多对多维度」权重需要按层级版本上卷成父节点分摊，供审核导出：
+
+- `hierarchy_build` 提供版本化父子路径：`GET /api/hierarchy_build/versions`、
+  `GET /api/hierarchy_build/paths?version=...`。
+- 区域目录更正节点归属：`POST /api/hierarchy_build/move-node`
+  （`{version, node, new_parent, operator}`），生成不可变的新版本，旧版本路径保留。
+- 桥接分摊：`GET /api/dim_bridge/allocations?order_key=&version=` 返回订单校验、
+  逐笔分摊和审核轨迹；`POST /api/dim_bridge/allocations/audit` 审核单条路径，
+  金额由服务端按版本复算。
+- 导出：`GET /api/dim_bridge/export?order_key=&version=` 输出 CSV，
+  逐笔列出事实键、父节点、分摊金额、层级版本与审核状态；
+  页面上的「导出桥接关联清单」也会在桥接表之后追加同样的分摊明细。
+
+分摊规则：
+
+- 成员按层级版本上卷到「分摊层级」父节点，重复展开到同一父节点只保留一行，
+  权重与来源成员合并；同一成员的重复登记只取第一条，避免金额翻倍。
+- 分摊金额按分四舍五入，尾差落到权重最大的节点，保证各笔之和等于订单金额；
+  校验结果写在每行的「金额校验」「分摊合计」列。
+- 审核记录按「事实键 + 层级版本 + 父节点」保存；版本更正后，新版本行会带上
+  「前次审核版本 / 前次审核节点 / 前次审核金额」，历史审核区按旧版本复算保留。
+
 ## 约定
 
 - 全部模块共享`frontend/src/views/WorkbenchView.vue|tsx`和一套资源路由。

@@ -34,7 +34,7 @@ class TestScdType2:
     def test_scd_type2_expires_old_record(self, store: Store) -> None:
         """维度变更后，旧记录的 current_marker 应变为 0，失效时间更新。"""
         result = scd_type2_handle(
-            dimension_key="DIM_-0001",
+            dimension_key="DIM_PRODUCT",
             new_attrs={"维度名称": "更新后的维度", "SCD类型": "Type2", "粒度说明": "日粒度"},
             store=store,
         )
@@ -44,7 +44,7 @@ class TestScdType2:
 
         # 验证旧记录已失效
         dim_rows = store.rows("dim_definition")
-        expired = [r for r in dim_rows if r.get("维度编码") == "DIM_-0001" and r.get("current_marker") == "0"]
+        expired = [r for r in dim_rows if r.get("维度编码") == "DIM_PRODUCT" and r.get("current_marker") == "0"]
         assert len(expired) >= 1
         for e in expired:
             assert e["失效时间"] != "9999-12-31 23:59:59"
@@ -52,7 +52,7 @@ class TestScdType2:
     def test_scd_type2_new_record_effective(self, store: Store) -> None:
         """新记录应标记为 current_marker=1，生效时间为当前时间。"""
         result = scd_type2_handle(
-            dimension_key="DIM_-0002",
+            dimension_key="DIM_CUSTOMER",
             new_attrs={"维度名称": "新维度名", "粒度说明": "月粒度"},
             store=store,
         )
@@ -65,7 +65,7 @@ class TestScdType2:
     def test_scd_type2_writes_change_log(self, store: Store) -> None:
         """SCD Type 2 变更后应在 slow_change_log 中写入记录。"""
         result = scd_type2_handle(
-            dimension_key="DIM_-0003",
+            dimension_key="DIM_STORE",
             new_attrs={"SCD类型": "Type2", "数据来源": "新系统"},
             store=store,
         )
@@ -73,7 +73,7 @@ class TestScdType2:
         assert result["log_id"] > 0
         log_entry = [r for r in log_rows if r.get("id") == result["log_id"]]
         assert len(log_entry) == 1
-        assert "DIM_-0003" in log_entry[0].get("目标维度", "")
+        assert "DIM_STORE" in log_entry[0].get("目标维度", "")
 
 
 # ======================================================================
@@ -371,8 +371,8 @@ class TestDateDimFk:
 
     def test_date_dim_fk_links_to_fact(self, store: Store) -> None:
         """日期维度外键应关联到事实设计。"""
-        result = date_dim_to_fact_fk("事实设计样例1", "date_sk", store=store)
-        assert result["fact_name"] == "事实设计样例1"
+        result = date_dim_to_fact_fk("销售明细事实", "date_sk", store=store)
+        assert result["fact_name"] == "销售明细事实"
         assert result["linked_facts"] >= 1
 
     def test_date_dim_fk_missing_fact(self, store: Store) -> None:

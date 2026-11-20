@@ -327,7 +327,8 @@ class Store:
         self.artifacts = ArtifactRegistry()
 
     def module_names(self) -> list[str]:
-        return sorted(self._tables)
+        """业务模块名；以下划线开头的是桥接分摊等功能的内部辅助表。"""
+        return sorted(name for name in self._tables if not name.startswith("_"))
 
     def rows(self, module: str) -> list[dict[str, Any]]:
         return self._tables.setdefault(module, [])

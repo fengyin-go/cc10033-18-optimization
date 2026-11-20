@@ -15,6 +15,9 @@
       </div>
     </header>
 
+    <HierarchyVersionPanel v-if="meta.key === 'hierarchy_build'" />
+    <BridgeAllocationPanel v-if="meta.key === 'dim_bridge'" />
+
     <div class="stat-row">
       <article v-for="item in stats" :key="item.label" class="stat-card">
         <span class="stat-label">{{ item.label }}</span>
@@ -104,6 +107,8 @@ import {
   runAction as applyAction,
 } from '@/api/backend-service'
 import type { EntryRow } from '@/data/types'
+import BridgeAllocationPanel from '@/views/modules/BridgeAllocationPanel.vue'
+import HierarchyVersionPanel from '@/views/modules/HierarchyVersionPanel.vue'
 
 const props = defineProps<{ moduleKey: string }>()
 const meta = moduleMeta(props.moduleKey)

@@ -5,11 +5,13 @@
 - 三种层级模式：父子字段(parent_id)、层级路径(path_string)、桥接表(bridge_table)
 - 递归深度检测：防止循环引用
 - 扁平化转换：将树形层级转换为列式属性
+- 版本化父子路径：为桥接分摊提供指定版本的层级路径，支持区域目录更正节点归属
 """
 from __future__ import annotations
 
 from typing import Any
 
+from app.services import bridge_allocation
 from app.services.base import BaseModuleService
 from app.store import store
 
@@ -107,9 +109,58 @@ class HierarchyBuildService(BaseModuleService):
         for row in store.rows(self.MODULE):
             mode = row.get("_mode", "未知")
             mode_dist[mode] = mode_dist.get(mode, 0) + 1
+        versions = bridge_allocation.list_versions(store)
         base["mode_distribution"] = mode_dist
         base["consumed_dims"] = len(store.channel.consume("dim.published", "hierarchy_build"))
+        base["versions"] = [item["版本"] for item in versions]
+        base["current_versions"] = {
+            item["维度"]: item["版本"]
+            for item in versions if item.get("状态") == "已生效"
+        }
         return base
+
+    def list_versions(
+        self, dim_code: str | None = None, db: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        return bridge_allocation.list_versions(db or store, dim_code)
+
+    def paths(
+        self,
+        version: str | None = None,
+        dim_code: str | None = None,
+        db: Any | None = None,
+    ) -> dict[str, Any]:
+        """指定版本的父子路径明细；不传版本时取该维度当前生效版本。"""
+        return bridge_allocation.hierarchy_paths(db or store, version, dim_code)
+
+    def move_node(
+        self,
+        version: str,
+        node: str,
+        new_parent: str,
+        *,
+        new_version: str | None = None,
+        operator: str = "",
+        remark: str = "",
+        db: Any | None = None,
+    ) -> dict[str, Any]:
+        """区域目录更正：节点改挂新父节点，旧版本保持不可变以便追溯审核。"""
+        db = db or store
+        result = bridge_allocation.move_node(
+            db, version, node, new_parent,
+            new_version=new_version, operator=operator, remark=remark)
+
+        # 层级主表记录这次重建，便于在列表里看到更正后的路径
+        rows = db.rows(self.MODULE)
+        dim_code = next(
+            (item.get("维度", "") for item in db.rows("_hierarchy_versions")
+             if item.get("版本") == result["版本"]), "")
+        target = next((row for row in rows if row.get("所属维度") == dim_code), None)
+        if target is not None:
+            target["层级路径"] = result["新路径"]
+            target["status"] = "已重建"
+            target["_rebuild_version"] = result["版本"]
+        return result
 
 
 def _build_hierarchy_tree(entry: dict[str, Any]) -> dict[str, Any]:
